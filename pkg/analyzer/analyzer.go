@@ -24,8 +24,16 @@ type SpeedupVerdict struct {
 	PrefixSkipRatio  float64 `json:"prefix_skip_ratio"` // reused / (reused + prefilled) tokens, 0..1
 	P50CacheOnMs     float64 `json:"p50_cache_on_ms"`
 	P50CacheOffMs    float64 `json:"p50_cache_off_ms"`
-	Speedup          float64 `json:"speedup"` // p50_off / p50_on  (1.0 == none)
-	Reason           string  `json:"reason"`
+	Speedup          float64 `json:"speedup"` // p50_off / p50_on  (1.0 == none) — END-TO-END (prefill+decode)
+	// Prefill-only view: the KV-prefix cache speeds up PREFILL only; decode is
+	// unchanged. PrefillSpeedup is the honest "what the KV-cache buys" number
+	// (what the popular "10-17× KV-cache" claim refers to); Speedup above is the
+	// END-TO-END number an end user actually experiences (diluted by decode).
+	// Reporting BOTH is the §11.4.6 disambiguation this engine exists for.
+	PrefillP50CacheOnMs  float64 `json:"prefill_p50_cache_on_ms"`
+	PrefillP50CacheOffMs float64 `json:"prefill_p50_cache_off_ms"`
+	PrefillSpeedup       float64 `json:"prefill_speedup"` // prefill_p50_off / prefill_p50_on
+	Reason               string  `json:"reason"`
 }
 
 // Analyze compares cache-on runs against cache-off runs and returns a verdict.
@@ -60,11 +68,16 @@ func Analyze(cacheOn, cacheOff []backend.CompletionResult) SpeedupVerdict {
 
 	v.P50CacheOnMs = p50Ms(cacheOn)
 	v.P50CacheOffMs = p50Ms(cacheOff)
+	v.PrefillP50CacheOnMs = prefillP50Ms(cacheOn)
+	v.PrefillP50CacheOffMs = prefillP50Ms(cacheOff)
 	if reused+prefilled > 0 {
 		v.PrefixSkipRatio = float64(reused) / float64(reused+prefilled)
 	}
 	if v.P50CacheOnMs > 0 {
 		v.Speedup = v.P50CacheOffMs / v.P50CacheOnMs
+	}
+	if v.PrefillP50CacheOnMs > 0 {
+		v.PrefillSpeedup = v.PrefillP50CacheOffMs / v.PrefillP50CacheOnMs
 	}
 	v.RealPrefillSkip = reused > 0 && v.P50CacheOnMs < v.P50CacheOffMs
 	if v.RealPrefillSkip {
@@ -105,4 +118,15 @@ func p50Ms(rs []backend.CompletionResult) float64 {
 	}
 	sort.Float64s(totals)
 	return totals[len(totals)/2]
+}
+
+// prefillP50Ms returns the median prefill-only duration (the KV-prefix cache's
+// direct effect surface — decode is unchanged).
+func prefillP50Ms(rs []backend.CompletionResult) float64 {
+	vals := make([]float64, len(rs))
+	for i, r := range rs {
+		vals[i] = float64(r.PrefillDur.Milliseconds())
+	}
+	sort.Float64s(vals)
+	return vals[len(vals)/2]
 }

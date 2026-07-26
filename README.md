@@ -40,8 +40,11 @@ was scaffolded from, and in [`DESIGN.md`](DESIGN.md).
 ## The anti-bluff benchmark harness (the load-bearing artifact)
 
 The "17×" claim is only non-bluff because a harness **measures** it. This repo
-ships a runnable Go harness skeleton whose equivalence logic and self-validation
-**genuinely run** (model calls are stubbed at this phase — see "Stub vs real").
+ships a runnable Go harness whose equivalence logic and self-validation
+**genuinely run**, and a **REAL Track-A backend** (`-live`) that drives a live
+`llama.cpp` server and reports MEASURED numbers (see "REAL measured Track-A
+result" below). The `DeterministicStub` remains only as the self-validation
+fixture for the analyzers — never as a presented result.
 
 - **Real equivalence oracle** (`pkg/equivalence`) — compares a cached multi-turn
   output against a **from-scratch full-context recompute of the SAME turn**,
@@ -62,22 +65,56 @@ ships a runnable Go harness skeleton whose equivalence logic and self-validation
 ```bash
 go build ./...        # BUILD_OK
 go vet ./...          # clean
-go test -race ./...   # all packages ok
-go run ./cmd/perfbench  # selfcheck + writes ./qa-results/perfbench.json ; exits non-zero on any anti-bluff violation
+go test -race ./...   # all packages ok (live backend test SKIPs if no server)
+go run ./cmd/perfbench          # selfcheck (stub analyzers) + writes ./qa-results/perfbench.json
+go run ./cmd/perfbench -live [endpoint] [out.json]   # REAL Track-A benchmark vs a live llama.cpp server
+                                                     # default endpoint http://localhost:18434
 ```
 
-Captured selfcheck output (this repo, Go 1.26, stub backend):
+The `selfcheck` (no args) validates the harness's OWN logic against the
+`DeterministicStub`; its `speedup=11.67x` line is the **stub's** modelled
+prefill-skip ratio (256-token reused prefix + 4 new tokens), demonstrating the
+harness math — **NOT a measured model number**. The real number comes from
+`-live`.
+
+### REAL measured Track-A result (live llama.cpp — MEASURED, not asserted)
+
+Captured against a live `llama.cpp` server (Qwen3-Coder-30B-A3B Q4_K_M, flash
+attention on, q8_0 KV-cache; endpoint `:18434`), N=12, 2293-token prompt
+(2281-token stable prefix + a short new turn), strict greedy (temp 0, top_k 1),
+every duration + token read from the server's own `timings`:
 
 ```
-benchmark: backend=stub-local-llamacpp N=12 cacheOff_p50=560ms cacheOn_p50=48ms speedup=11.67x prefix_skip=98% -> qa-results/perfbench.json
-equivalence self-validation: golden-good PASS, golden-bad CAUGHT
-analyzer self-validation: golden-good speedup DETECTED, golden-bad mislabel CAUGHT
-SELFCHECK: PASS
+live benchmark: backend=llamacpp-local N=12 \
+  prefill_p50 off=201ms on=13ms prefill_speedup=15.46x | \
+  endToEnd off=288ms on=97ms endToEnd_speedup=2.96x | \
+  prefix_skip=99% equivalent=true -> qa-results/perfbench-live.json
 ```
 
-The 11.67× is the **stub's** prefill-skip ratio for a 256-token reused prefix +
-4 new tokens — it demonstrates the harness math, **not** a real model number.
-Real numbers come from the Track-A/Track-B backends wired in later phases.
+Read this honestly (§11.4.6), and note the **two distinct numbers** are the
+whole point:
+
+- **`prefill_speedup` ≈ 15×** — what the KV-prefix cache actually buys: the
+  reused prefix's KV is skipped, so prompt-processing drops from ~200 ms to
+  ~13 ms (2281 of 2293 tokens served from cache). This is the number the popular
+  "10–17× KV-cache" claim refers to, and it lands in that band **for this
+  high-prefix-overlap shape** — measured, per model + lane, never asserted.
+- **`endToEnd_speedup` ≈ 3×** — what an end user actually experiences on a
+  24-token completion: decode time is UNCHANGED by the cache, so it dilutes the
+  prefill win. Longer prefixes / shorter outputs push end-to-end toward the
+  prefill number; longer outputs push it lower.
+- **`equivalent=true`** — the equivalence oracle compared the cache-on output
+  against a from-scratch full-context recompute of the SAME turn (two genuinely
+  distinct server paths: `cache_n=2281` reuse vs `cache_n=0` full prefill) and
+  found them **token-for-token identical**. This is NOT the tautology the pasted
+  guide used. *(Measured caveat: under the server's DEFAULT sampler at temp 0,
+  quantized-KV numerics can flip near-tie tokens; the benchmark uses strict
+  greedy — top_k 1 — which is the correct deterministic comparison and yields
+  exact identity.)*
+
+If no server is reachable, `-live` writes an honest SKIP report
+(`skipped:true`, `MEASUREMENT PENDING — infra blocked`), never a fake PASS
+(§11.4.69).
 
 ---
 
@@ -89,9 +126,10 @@ Real numbers come from the Track-A/Track-B backends wired in later phases.
 | cache-on vs cache-off code paths (prefill accounting) | **REAL** |
 | equivalence oracle, speedup analyzer, mislabel detection | **REAL** — genuinely run + self-validate |
 | benchmark runner (N≥10, p50/p95, JSON, honest SKIP) | **REAL** |
-| the model itself (`DeterministicStub` hash-chain) | **STUB** — pure function of full context, temperature-0-shaped |
-| per-token latency (2ms prefill / 5ms decode) | **STUB** constants |
-| Track A llama.cpp backend, Track B Anthropic + ccr backends | **OWED** (Phase 3/4, §11.4.197) |
+| **Track A llama.cpp backend (`pkg/backend/llamacpp.go`)** | **REAL** — drives a live `/completion` server, every timing/token read from the server, real prefix-reuse measured (see live result above) |
+| the `DeterministicStub` model (selfcheck only) | **STUB** — pure function of full context, temperature-0-shaped; used ONLY to self-validate the analyzers, never presented as a measured result |
+| stub per-token latency (2ms prefill / 5ms decode) | **STUB** constants — selfcheck only |
+| Track B Anthropic + ccr backends (prompt-cache/compression, NOT decode-speedup) | **OWED** (Phase 4, §11.4.197) |
 | MCP / Skill auto-activation surfaces | **OWED** (Phase 6, §11.4.164 / §11.4.228) |
 | content-addressed cache-consistency engine | **OWED** (Phase 5, §11.4.86 / §11.4.206) |
 
