@@ -1,0 +1,13 @@
+{
+  "_comment": "GOLDEN-BAD (§11.4.107(10)): the pasted guide's exact bluff — cache-off runs RELABELLED cache_on=true with ZERO prefix reused and the full-context prefill cost unchanged. The analyzer MUST set mislabel_detected=true and report speedup 1.0 (NO nonexistent speedup). An analyzer that PASSes this fixture as a real speedup is itself the bluff.",
+  "cache_off": [
+    {"prefill_tokens": 104, "prefix_reused": 0, "decode_tokens": 8, "prefill_dur_ns": 208000000, "decode_dur_ns": 40000000, "cache_on": false, "backend": "golden"},
+    {"prefill_tokens": 104, "prefix_reused": 0, "decode_tokens": 8, "prefill_dur_ns": 208000000, "decode_dur_ns": 40000000, "cache_on": false, "backend": "golden"},
+    {"prefill_tokens": 104, "prefix_reused": 0, "decode_tokens": 8, "prefill_dur_ns": 208000000, "decode_dur_ns": 40000000, "cache_on": false, "backend": "golden"}
+  ],
+  "cache_on": [
+    {"prefill_tokens": 104, "prefix_reused": 0, "decode_tokens": 8, "prefill_dur_ns": 208000000, "decode_dur_ns": 40000000, "cache_on": true, "backend": "golden"},
+    {"prefill_tokens": 104, "prefix_reused": 0, "decode_tokens": 8, "prefill_dur_ns": 208000000, "decode_dur_ns": 40000000, "cache_on": true, "backend": "golden"},
+    {"prefill_tokens": 104, "prefix_reused": 0, "decode_tokens": 8, "prefill_dur_ns": 208000000, "decode_dur_ns": 40000000, "cache_on": true, "backend": "golden"}
+  ]
+}

@@ -1,0 +1,37 @@
+# Build artefacts (§11.4.30)
+/bin/
+/build/
+/dist/
+/out/
+*.exe
+*.test
+*.o
+*.a
+
+# Go caches / coverage
+coverage.out
+coverage.html
+
+# Captured run artefacts — regenerable via `go run ./cmd/perfbench` (§11.4.77).
+# Curated evidence is committed under docs/qa/<run-id>/ only at release prep
+# (§11.4.128). Raw benchmark output stays out of version control.
+/qa-results/
+
+# Cache stores hold prompt bytes (potentially secret) — NEVER commit (R-CRED / §11.4.10)
+/.perf_cache_store/
+*.perfcache
+
+# Sensitive-data files (§11.4.10 / §11.4.30)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Temp / OS / IDE
+*.tmp
+*.swp
+*~
+.DS_Store
+.idea/
+.vscode/

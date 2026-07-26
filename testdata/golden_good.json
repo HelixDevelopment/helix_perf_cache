@@ -1,0 +1,13 @@
+{
+  "_comment": "GOLDEN-GOOD (§11.4.107(10)): a genuine prefix KV reuse. cache_on runs reuse a 100-token prefix (prefill skipped, lower prefill_dur_ns); cache_off runs recompute the whole context. The analyzer MUST report a real prefill-skip speedup and MUST NOT flag a mislabel. Durations are ns (2ms/prefill-tok, 5ms/decode-tok — the DeterministicStub model).",
+  "cache_off": [
+    {"prefill_tokens": 104, "prefix_reused": 0, "decode_tokens": 8, "prefill_dur_ns": 208000000, "decode_dur_ns": 40000000, "cache_on": false, "backend": "golden"},
+    {"prefill_tokens": 104, "prefix_reused": 0, "decode_tokens": 8, "prefill_dur_ns": 208000000, "decode_dur_ns": 40000000, "cache_on": false, "backend": "golden"},
+    {"prefill_tokens": 104, "prefix_reused": 0, "decode_tokens": 8, "prefill_dur_ns": 208000000, "decode_dur_ns": 40000000, "cache_on": false, "backend": "golden"}
+  ],
+  "cache_on": [
+    {"prefill_tokens": 4, "prefix_reused": 100, "decode_tokens": 8, "prefill_dur_ns": 8000000, "decode_dur_ns": 40000000, "cache_on": true, "backend": "golden"},
+    {"prefill_tokens": 4, "prefix_reused": 100, "decode_tokens": 8, "prefill_dur_ns": 8000000, "decode_dur_ns": 40000000, "cache_on": true, "backend": "golden"},
+    {"prefill_tokens": 4, "prefix_reused": 100, "decode_tokens": 8, "prefill_dur_ns": 8000000, "decode_dur_ns": 40000000, "cache_on": true, "backend": "golden"}
+  ]
+}

@@ -1,0 +1,29 @@
+# helix_perf_cache — submodule dependency manifest (§11.4.31)
+#
+# At the Phase 0-1 foundation stage helix_perf_cache is a LEAF reusable engine:
+# ZERO own-org Git dependencies and ZERO third-party module dependencies (Go
+# stdlib only). It is designed to be inherited BY REFERENCE as a depth-1
+# submodule under the constitution submodule per the §11.4.28(C) carve-out
+# (constitution/submodules/helix_perf_cache/), nesting no further own-org
+# submodules.
+#
+# PLANNED dep (NOT yet declared — §11.4.6, declared only when real): the
+# rootless bench-lane container (Track A vLLM/SGLang feasibility spike; Track B
+# LLMLingua compressor service, §11.4.161) will consume the Containers submodule
+# (git@github.com:vasic-digital/containers.git, §11.4.76). That dependency is
+# added to `deps` below in the phase that first ships a container — it is NOT
+# declared now because no code in this engine uses it yet (§11.4.197 owed).
+schema_version: 1
+name: helix_perf_cache
+ssh_url: git@github.com:HelixDevelopment/helix_perf_cache.git
+mirrors:
+  - git@github.com:HelixDevelopment/helix_perf_cache.git
+  - git@gitlab.com:helixdevelopment1/helix_perf_cache.git
+language: go
+language_specific_subtree: false
+deps: []                       # zero own-org deps at the foundation phase (leaf engine)
+transitive_handling:
+  recursive: true
+  conflict_resolution: operator-required
+project_agnostic: true         # §11.4.28(B)/§11.4.177 — carries no project literals
+carve_out: "§11.4.28(C) depth-1 reusable engine under constitution/submodules/"
