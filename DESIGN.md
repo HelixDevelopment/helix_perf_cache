@@ -65,9 +65,13 @@ context so the analyzers exercise real logic. Later backends replace it:
   from a rootless container (PagedAttention APC / RadixAttention), an
   A/B-selectable higher-ceiling alternative to llama.cpp (operator-gated, larger
   blast radius per RISKS.md R-ENGINE-SWAP).
-- **Track B `AnthropicBackend`** — `messages.create` with `cache_control`
-  breakpoints on the stable prefix; surfaces `usage.cache_read_input_tokens`.
-  `CacheHit` maps to prompt-cache read, **not** a decode speedup.
+- **Track B `AnthropicPromptCache`** (`pkg/backend/anthropic_promptcache.go`,
+  REAL now) — `/v1/messages` with a `cache_control` ephemeral breakpoint on the
+  stable prefix; surfaces `usage.cache_read_input_tokens`. `PrefixReused` maps to
+  the prompt-cache read (cost + request-latency win), **not** a decode speedup
+  (§11.4.112). `go run ./cmd/perfbench -live-b` measures it live when a credential
+  is present, else writes an honest `credentials_absent` SKIP report. The live
+  NUMBER is MEASUREMENT-PENDING (operator-gated: a real credential + a paid call).
 - **Track B `ProviderBackend` (via ccr)** — Anthropic→OpenAI translation through
   claude-code-router. `cache_control` is stripped upstream; the client lever is
   prefix stability + `usage.prompt_cache_hit_tokens` observation + pre-ccr

@@ -22,6 +22,31 @@ import (
 // run is not a distribution).
 const MinIterations = 10
 
+// genericBenchNote is the fallback note for a backend that does not supply its
+// own via NoteProvider. It NAMES itself a fallback so it can never be mistaken
+// for a real measured backend's captured-evidence note (the review NIT — a live
+// report must never silently carry a Phase-0-1 stub note).
+const genericBenchNote = "generic benchmark note (backend supplied none): durations are whatever the backend reported; wall_ms is real measured wall-clock. A real backend SHOULD implement bench.NoteProvider to describe its measurement honestly (§11.4.6)."
+
+// NoteProvider is an OPTIONAL backend capability: a backend that implements it
+// supplies its own captured-evidence Note so Run derives the report note from
+// the backend itself, never from a hardcoded stub constant. A backend that does
+// not implement it (or returns "") falls back to genericBenchNote.
+type NoteProvider interface {
+	BenchNote() string
+}
+
+// benchNote resolves the report note for a backend: the backend's own BenchNote
+// if it provides one, else the self-labelling generic fallback.
+func benchNote(b backend.Backend) string {
+	if np, ok := b.(NoteProvider); ok {
+		if n := np.BenchNote(); n != "" {
+			return n
+		}
+	}
+	return genericBenchNote
+}
+
 // IterationTiming is one captured iteration.
 type IterationTiming struct {
 	Iter        int     `json:"iter"`
@@ -63,7 +88,7 @@ func Run(b backend.Backend, turns []backend.Turn, n int) (Report, error) {
 		Backend:   b.Name(),
 		Timestamp: time.Now().UTC().Format(time.RFC3339),
 		N:         n,
-		Note:      "Phase 0-1 foundation: durations are from the DeterministicStub latency model; real backends replace them (§11.4.197). wall_ms is real measured wall-clock.",
+		Note:      benchNote(b),
 	}
 	if !b.Available() {
 		rep.Skipped = true

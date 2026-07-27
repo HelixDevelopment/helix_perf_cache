@@ -103,6 +103,12 @@ func NewUnavailableStub(name string) *DeterministicStub {
 func (s *DeterministicStub) Name() string    { return s.name }
 func (s *DeterministicStub) Available() bool { return s.avail }
 
+// BenchNote implements bench.NoteProvider: it labels the stub's reports as
+// modelled, so a stub report is never mistaken for a real measured one (§11.4.6).
+func (s *DeterministicStub) BenchNote() string {
+	return "Phase 0-1 foundation STUB: durations are from the DeterministicStub latency model (prefillPerTok/decodePerTok constants), NOT measured; real backends replace them (§11.4.197). wall_ms is real measured wall-clock. This report proves the analyzer logic runs, not a real speedup."
+}
+
 // genTokens produces genLen output tokens as a deterministic hash-chain seeded
 // by the FULL context. This models a temperature=0 / fixed-seed decode: the
 // output is a pure function of the input tokens.

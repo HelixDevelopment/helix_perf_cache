@@ -78,6 +78,48 @@ func TestRunUnavailableBackendSkips(t *testing.T) {
 	}
 }
 
+// noteBackend is a correct backend that ALSO supplies its own bench note via the
+// bench.NoteProvider seam. It exists to prove Run derives the report note from
+// the backend, never from a hardcoded stub constant (the review NIT: a future
+// refactor must not be able to re-expose the Phase-0-1 stub note on a live report).
+type noteBackend struct {
+	*backend.DeterministicStub
+	note string
+}
+
+func (n noteBackend) BenchNote() string { return n.note }
+
+// TestRunNoteIsBackendDerived: Run MUST seed rep.Note from a NoteProvider
+// backend's BenchNote(), not from any hardcoded stub string; and a plain backend
+// (no NoteProvider) falls back to the generic note. RED before the fix (Run
+// hard-set the stub note); GREEN after (Run derives it).
+func TestRunNoteIsBackendDerived(t *testing.T) {
+	const live = "REAL-LIVE-BACKEND-NOTE — no stub leakage"
+	nb := noteBackend{DeterministicStub: backend.NewCorrectStub("note-backend"), note: live}
+	rep, err := bench.Run(nb, turns(), 10)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if rep.Note != live {
+		t.Fatalf("Run MUST derive the note from the backend's BenchNote(); got %q, want %q", rep.Note, live)
+	}
+	// A backend that supplies NO note (empty BenchNote) still must not carry a
+	// live-report-poisoning stub note by accident: it falls back to the generic
+	// note, which explicitly names itself a fallback and is never mistaken for
+	// a real measured backend's note.
+	fb := noteBackend{DeterministicStub: backend.NewCorrectStub("empty-note"), note: ""}
+	repFB, err := bench.Run(fb, turns(), 10)
+	if err != nil {
+		t.Fatalf("Run(fallback): %v", err)
+	}
+	if repFB.Note == "" {
+		t.Fatal("Run MUST always seed a non-empty note")
+	}
+	if repFB.Note == live {
+		t.Fatal("empty BenchNote must not resolve to another backend's note")
+	}
+}
+
 // TestRunCorruptBackendFlagsCorrectness: a buggy cache surfaces as an
 // equivalence FAIL in the report — the benchmark never hides a correctness bug
 // behind a speedup number.

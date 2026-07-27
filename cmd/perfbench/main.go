@@ -12,6 +12,13 @@
 //	                                  # llama.cpp server (default endpoint
 //	                                  # http://localhost:18434), then selfcheck.
 //	                                  # Honest SKIP report if the server is absent.
+//	go run ./cmd/perfbench -live-b [model] [out.json]
+//	                                  # REAL Track-B Anthropic PROMPT-CACHE
+//	                                  # measurement (usage.cache_read_input_tokens).
+//	                                  # Honest SKIP (credentials_absent) if
+//	                                  # ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN is
+//	                                  # absent — never a fake PASS, never a paid
+//	                                  # call without a configured credential.
 package main
 
 import (
@@ -45,6 +52,22 @@ func main() {
 		}
 		return
 	}
+	if len(args) > 0 && args[0] == "-live-b" {
+		model := ""
+		out := "qa-results/perfbench-live-b.json"
+		rest := args[1:]
+		if len(rest) > 0 {
+			model = rest[0]
+		}
+		if len(rest) > 1 {
+			out = rest[1]
+		}
+		if err := runLiveB(model, out); err != nil {
+			fmt.Fprintf(os.Stderr, "FAIL: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
 	out := "qa-results/perfbench.json"
 	if len(args) > 0 {
 		out = args[0]
@@ -53,6 +76,55 @@ func main() {
 		fmt.Fprintf(os.Stderr, "FAIL: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+// runLiveB drives the REAL Track-B Anthropic prompt-cache measurement and writes
+// the captured report, OR writes an honest SKIP report (§11.4.69
+// credentials_absent) when no credential is configured. It NEVER makes a paid
+// call without a configured credential, and NEVER fakes a PASS.
+func runLiveB(model, out string) error {
+	b := backend.NewAnthropicPromptCache("anthropic-promptcache", model, 24)
+	if !b.Available() {
+		rep := bench.Report{
+			Backend:    b.Name(),
+			Timestamp:  nowUTC(),
+			N:          0,
+			Skipped:    true,
+			SkipReason: "credentials_absent: " + b.MissingCredentialEnvNames() + " not set — SKIP-with-reason (§11.4.69), NOT a fake PASS. Track-B prompt-cache is a hosted-API measurement requiring a real credential (operator-gated: a paid API call).",
+			Note:       "MEASUREMENT PENDING — credentials_absent. Track B measures the Anthropic PROMPT-CACHE read win (usage.cache_read_input_tokens): an INPUT-TOKEN-REUSE cost + request-latency win, NOT a decode speedup and NOT a KV-cache injection (§11.4.112 structurally impossible from a hosted-API client). Set ANTHROPIC_API_KEY and re-run.",
+		}
+		if err := bench.WriteJSON(rep, out); err != nil {
+			return fmt.Errorf("write skip report: %w", err)
+		}
+		fmt.Printf("live-b (Track B): backend=%s SKIPPED (%s) -> %s\n", rep.Backend, rep.SkipReason, out)
+		return nil
+	}
+
+	// A large stable prefix (the cache candidate) + a short new turn. Real prompt
+	// text encoded to the codepoint Turn the Anthropic lane consumes.
+	prefixText := repeatSystem(400)
+	newText := "Summarize the single most important rule in one sentence."
+	turns := []backend.Turn{{
+		Prefix: backend.StringToTurnInts(prefixText),
+		New:    backend.StringToTurnInts(newText),
+	}}
+
+	rep, err := bench.Run(b, turns, 10)
+	if err != nil {
+		return fmt.Errorf("live-b benchmark: %w", err)
+	}
+	rep.Note = fmt.Sprintf("%s Measured over N=%d cache-read calls; prefix=%d input codepoints. prefix_read_ratio=%.0f%% of input served from the prompt cache; latency p50 off=%.0fms on=%.0fms.",
+		b.BenchNote(), rep.N, len(turns[0].Prefix), rep.Speedup.PrefixSkipRatio*100, rep.CacheOffP50Ms, rep.CacheOnP50Ms)
+	if err := bench.WriteJSON(rep, out); err != nil {
+		return fmt.Errorf("write live-b report: %w", err)
+	}
+	fmt.Printf("live-b (Track B): backend=%s N=%d latency_p50 off=%.0fms on=%.0fms latency_ratio=%.2fx prefix_read_ratio=%.0f%% content_equivalent=%v -> %s\n",
+		rep.Backend, rep.N, rep.CacheOffP50Ms, rep.CacheOnP50Ms, rep.Speedup.Speedup, rep.Speedup.PrefixSkipRatio*100, rep.Equivalence.Equivalent, out)
+	if !rep.Equivalence.Equivalent {
+		fmt.Printf("WARNING: cache-on content diverged from cache-off at token %d (%s) — a correct prompt-cache changes only cost/latency, never content.\n",
+			rep.Equivalence.DivergedAt, rep.Equivalence.Reason)
+	}
+	return nil
 }
 
 // runLive drives the REAL llama.cpp backend end-to-end and writes the measured

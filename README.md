@@ -129,7 +129,8 @@ If no server is reachable, `-live` writes an honest SKIP report
 | **Track A llama.cpp backend (`pkg/backend/llamacpp.go`)** | **REAL** — drives a live `/completion` server, every timing/token read from the server, real prefix-reuse measured (see live result above) |
 | the `DeterministicStub` model (selfcheck only) | **STUB** — pure function of full context, temperature-0-shaped; used ONLY to self-validate the analyzers, never presented as a measured result |
 | stub per-token latency (2ms prefill / 5ms decode) | **STUB** constants — selfcheck only |
-| Track B Anthropic + ccr backends (prompt-cache/compression, NOT decode-speedup) | **OWED** (Phase 4, §11.4.197) |
+| **Track B Anthropic prompt-cache backend (`pkg/backend/anthropic_promptcache.go`)** | **REAL backend + honest-SKIP harness** — drives `/v1/messages` with `cache_control`, reads `usage.cache_read_input_tokens` (prompt-cache read = cost + latency win, **NOT** a decode speedup, §11.4.112). `go run ./cmd/perfbench -live-b` measures it live when `ANTHROPIC_API_KEY` is set; otherwise writes an honest `skipped:true` `credentials_absent` / **MEASUREMENT PENDING** report — never a fake PASS, never an autonomous paid call. **No live number is claimed** (this host has no Anthropic credential). |
+| Track B ccr-provider compression / concise-output levers | **OWED** (Phase 4, §11.4.197) |
 | MCP / Skill auto-activation surfaces | **OWED** (Phase 6, §11.4.164 / §11.4.228) |
 | content-addressed cache-consistency engine | **OWED** (Phase 5, §11.4.86 / §11.4.206) |
 

@@ -50,6 +50,13 @@ func NewLlamaCpp(name, endpoint string, nPredict int) *LlamaCppBackend {
 
 func (l *LlamaCppBackend) Name() string { return l.name }
 
+// BenchNote implements bench.NoteProvider: the default Track-A note so a live
+// llama.cpp report never falls back to (or leaks) the stub note. runLive may
+// enrich it with per-run detail (endpoint, prefix/new counts).
+func (l *LlamaCppBackend) BenchNote() string {
+	return "REAL measured Track-A KV-prefix-reuse on a live llama.cpp server. Durations + tokens are read from the server's own timings/tokens; NO value is modelled (§11.4.6). This is a genuine PREFILL-SKIP speedup; end-to-end is diluted by unchanged decode."
+}
+
 // Available probes GET /health and reports true only on a genuine 200 "ok"
 // (§11.4.201 — assert the real condition; a proxy/absent server is an honest
 // SKIP, never a fake PASS).
